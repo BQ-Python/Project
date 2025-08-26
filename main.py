@@ -4,10 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Autoriser les requêtes CORS depuis StackBlitz ou localhost
+# Configuration CORS pour autoriser les appels depuis StackBlitz
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Remplace "*" par l'URL de ton front si tu veux restreindre
+    allow_origins=[
+        "https://vitejsviteugrwopkm-vrkx--5173--96435430.local-credentialless.webcontainer.io",
+        "https://stackblitz.com",
+        "*",  # à utiliser temporairement pour tester, mais à restreindre en production
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
