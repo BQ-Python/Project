@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import date
 import yfinance as yf
+import numpy as np
 
 app = FastAPI()
 
@@ -174,6 +176,69 @@ def get_kpi():
         "exposureChartData": exposure_chart_data,
         "maturityChartData": maturity_chart_data,
         "bankChartData": bank_chart_data
+    }
+
+@app.get("/kpi/advanced")
+def get_advanced_kpi():
+    currency_pairs = ["JPY", "CHF", "USD", "CNY", "GBP", "BRL", "MXN", "AUD", "CAD"]
+    volatilities = {}
+
+    for ccy in currency_pairs:
+        pair = f"EUR{ccy}=X"
+        ticker = yf.Ticker(pair)
+        data = ticker.history(period="7d")
+        if data.empty or "Close" not in data.columns:
+            volatilities[ccy] = None
+            continue
+        returns = data["Close"].pct_change().dropna()
+        volatility = np.std(returns[-5:]) * 100
+        volatilities[ccy] = round(volatility, 2)
+
+    if not swaps_data:
+        return JSONResponse(content={
+            "message": "Pas de swaps disponibles pour calculer la VaR",
+            "volatilities": volatilities,
+            "VaR_95": None,
+            "VaR_99": None
+        })
+
+    exposures = []
+    returns_matrix = []
+
+    for swap in swaps_data:
+        ccy = swap["currency"]
+        pair = f"EUR{ccy}=X"
+        ticker = yf.Ticker(pair)
+        data = ticker.history(period="7d")
+        if data.empty or "Close" not in data.columns:
+            continue
+        returns = data["Close"].pct_change().dropna()
+        if len(returns) < 5:
+            continue
+        exposures.append(swap["nominal"] / swap["forwardRate"])
+        returns_matrix.append(returns[-5:].values)
+
+    if not exposures or not returns_matrix:
+        return JSONResponse(content={
+            "message": "Données insuffisantes pour calculer la VaR",
+            "volatilities": volatilities,
+            "VaR_95": None,
+            "VaR_99": None
+        })
+
+    exposures = np.array(exposures)
+    returns_matrix = np.array(returns_matrix)
+    cov_matrix = np.cov(returns_matrix)
+    portfolio_variance = exposures @ cov_matrix @ exposures.T
+    portfolio_std = np.sqrt(portfolio_variance)
+
+    VaR_95 = round(portfolio_std * 1.65, 2)
+    VaR_99 = round(portfolio_std * 2.33, 2)
+
+    return {
+        "volatilities": volatilities,
+        "VaR_95": VaR_95,
+        "VaR_99": VaR_99
     }
 
 if __name__ == "__main__":
