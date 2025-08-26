@@ -6,11 +6,10 @@ import yfinance as yf
 
 app = FastAPI()
 
-# ⚠️ Si tu n'utilises pas de cookies côté front, mets allow_credentials=False pour simplifier
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # ou liste précise d'origines si tu préfères
-    allow_credentials=False,
+    allow_origins=["*"],        # OK tant qu'on n'utilise pas de cookies
+    allow_credentials=False,    # True => préciser les origines
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -32,7 +31,7 @@ class Swap(BaseModel):
     spotRate: float          # taux EUR/CCY saisi
     forwardRate: float       # taux EUR/CCY saisi
     nominal: float           # nominal en devise CCY
-    currency: str            # ex: USD, GBP, JPY, CNY
+    currency: str            # USD, GBP, JPY, CNY
     bank: str
     maturity: str            # format YYYY-MM
 
@@ -44,8 +43,8 @@ class Swap(BaseModel):
             raise ValueError("currency must be one of USD, GBP, JPY, CNY")
         return v
 
-def get_market_rate(ccy: str) -> float:
-    """Récupère le taux marché EUR/CCY (Close du jour) via yfinance."""
+def get_market_rate(ccy: str) -> tuple[float, str]:
+    """Récupère le taux spot marché EUR/CCY (Close du jour) via yfinance."""
     pair = f"EUR{ccy}=X"
     ticker = yf.Ticker(pair)
     data = ticker.history(period="1d")
@@ -60,21 +59,25 @@ def add_loan(loan: Loan):
 
 @app.post("/add-swap")
 def add_swap(swap: Swap):
-    # 1) Récupère le taux marché (facultatif pour l'affichage / contrôle)
+    # 1) Taux marché actuel EUR/CCY
     market_rate, pair = get_market_rate(swap.currency)
 
-    # 2) Conversion EUR correcte avec les taux saisis (EUR/CCY)
+    # 2) Montants en EUR basés sur les taux saisis
     spot_amount_eur = swap.nominal / swap.spotRate
     forward_amount_eur = swap.nominal / swap.forwardRate
     points_eur = forward_amount_eur - spot_amount_eur
 
-    # 3) Construire l'objet renvoyé et stocké
+    # 3) MtM vs marché (positif = favorable)
+    mtm_vs_market_eur = forward_amount_eur - (swap.nominal / market_rate)
+
     swap_dict = swap.dict()
     swap_dict.update({
         "spotAmountEUR": round(spot_amount_eur, 2),
         "forwardAmountEUR": round(forward_amount_eur, 2),
         "pointsEUR": round(points_eur, 2),
-        "conversionRate": round(market_rate, 6),  # taux marché EUR/CCY (info)
+        "mtmVsMarketEUR": round(mtm_vs_market_eur, 2),   # <-- NEW
+        "conversionRate": round(market_rate, 6),          # conservé pour compat front
+        "marketRate": round(market_rate, 6),              # info explicite
         "pairUsed": pair
     })
 
@@ -88,12 +91,15 @@ def calculate_eur_values(swap: Swap):
     spot_amount_eur = swap.nominal / swap.spotRate
     forward_amount_eur = swap.nominal / swap.forwardRate
     points_eur = forward_amount_eur - spot_amount_eur
+    mtm_vs_market_eur = forward_amount_eur - (swap.nominal / market_rate)  # <-- NEW
 
     return {
         "spotAmountEUR": round(spot_amount_eur, 2),
         "forwardAmountEUR": round(forward_amount_eur, 2),
         "pointsEUR": round(points_eur, 2),
+        "mtmVsMarketEUR": round(mtm_vs_market_eur, 2),    # <-- NEW
         "conversionRate": round(market_rate, 6),
+        "marketRate": round(market_rate, 6),
         "pairUsed": pair
     }
 
@@ -106,8 +112,8 @@ def get_historical_eurfx(currency: str, start: date, end: date):
         raise HTTPException(status_code=404, detail=f"Aucune donnée disponible pour la paire {pair}")
     return {
         "pair": pair,
-        "dates": data.index.strftime("%Y-%m-%d").tolist(),
-        "rates": data["Close"].round(4).tolist()
+        "dates": data.index.strftime('%Y-%m-%d').tolist(),
+        "rates": data['Close'].round(4).tolist()
     }
 
 @app.get("/kpi")
@@ -130,7 +136,9 @@ def get_kpi():
         ratio = (swap_nominal / loan_nominal) * 100 if loan_nominal > 0 else 0
         hedging_ratios[currency] = round(ratio, 2)
 
-    total_mtm = sum(s["pointsEUR"] for s in swaps_data)  # MtM ~ diff EUR (forward - spot)
+    # Agrégats MtM
+    total_mtm_points = round(sum(s.get("pointsEUR", 0.0) for s in swaps_data), 2)
+    total_mtm_vs_market = round(sum(s.get("mtmVsMarketEUR", 0.0) for s in swaps_data), 2)  # <-- NEW
 
     # Charts
     exposure_chart_data = {
@@ -172,7 +180,8 @@ def get_kpi():
 
     return {
         "hedgingRatio": hedging_ratios,
-        "totalMtM": round(total_mtm, 2),
+        "totalMtM": total_mtm_points,             # historique (points EUR contract vs spot saisi)
+        "totalMtMVsMarket": total_mtm_vs_market,  # <-- NEW (contract vs marché actuel)
         "exposureChartData": exposure_chart_data,
         "maturityChartData": maturity_chart_data,
         "bankChartData": bank_chart_data
