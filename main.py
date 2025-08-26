@@ -8,10 +8,11 @@ from datetime import datetime, timedelta
 
 app = FastAPI()
 
+# CORS pour autoriser les appels depuis StackBlitz/Vite
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["*"],  # Tu peux restreindre à ton domaine si nécessaire
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -78,6 +79,69 @@ def add_swap(swap: Swap):
 
     swaps_data.append(swap_dict)
     return {"message": "Swap ajouté", "swap": swap_dict}
+
+@app.get("/kpi/advanced")
+def get_advanced_kpi():
+    currency_pairs = ["JPY", "CHF", "USD", "CNY", "GBP", "BRL", "MXN", "AUD", "CAD"]
+    volatilities = {}
+
+    for ccy in currency_pairs:
+        pair = f"EUR{ccy}=X"
+        ticker = yf.Ticker(pair)
+        data = ticker.history(period="7d")
+        if data.empty or "Close" not in data.columns:
+            volatilities[ccy] = None
+            continue
+        returns = data["Close"].pct_change().dropna()
+        volatility = np.std(returns[-5:]) * 100
+        volatilities[ccy] = round(volatility, 2)
+
+    if not swaps_data:
+        return JSONResponse(content={
+            "message": "Pas de swaps disponibles pour calculer la VaR",
+            "volatilities": volatilities,
+            "VaR_95": None,
+            "VaR_99": None
+        })
+
+    exposures = []
+    returns_matrix = []
+
+    for swap in swaps_data:
+        ccy = swap["currency"]
+        pair = f"EUR{ccy}=X"
+        ticker = yf.Ticker(pair)
+        data = ticker.history(period="7d")
+        if data.empty or "Close" not in data.columns:
+            continue
+        returns = data["Close"].pct_change().dropna()
+        if len(returns) < 5:
+            continue
+        exposures.append(swap["nominal"] / swap["forwardRate"])
+        returns_matrix.append(returns[-5:].values)
+
+    if not exposures or not returns_matrix:
+        return JSONResponse(content={
+            "message": "Données insuffisantes pour calculer la VaR",
+            "volatilities": volatilities,
+            "VaR_95": None,
+            "VaR_99": None
+        })
+
+    exposures = np.array(exposures)
+    returns_matrix = np.array(returns_matrix)
+    cov_matrix = np.cov(returns_matrix)
+    portfolio_variance = exposures @ cov_matrix @ exposures.T
+    portfolio_std = np.sqrt(portfolio_variance)
+
+    VaR_95 = round(portfolio_std * 1.65, 2)
+    VaR_99 = round(portfolio_std * 2.33, 2)
+
+    return {
+        "volatilities": volatilities,
+        "VaR_95": VaR_95,
+        "VaR_99": VaR_99
+    }
 
 @app.get("/var/history")
 def get_var_history(confidence: int = Query(95, ge=90, le=99), horizon: int = Query(30, ge=1, le=365)):
