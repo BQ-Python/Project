@@ -62,8 +62,8 @@ def add_swap(swap: Swap):
     swaps_data.append(swap_dict)
     return {"message": "Swap ajouté", "swap": swap_dict}
 
-@app.get("/calculate-points")
-def calculate_points(swap: Swap):
+@app.post("/calculate-eur-values")
+def calculate_eur_values(swap: Swap):
     pair = f"EUR{swap.currency}=X"
     ticker = yf.Ticker(pair)
     data = ticker.history(period="1d")
@@ -75,6 +75,7 @@ def calculate_points(swap: Swap):
     spot_amount_eur = (swap.nominal / swap.spotRate) * conversion_rate
     forward_amount_eur = (swap.nominal / swap.forwardRate) * conversion_rate
     points_eur = forward_amount_eur - spot_amount_eur
+
     return {
         "spotAmountEUR": round(spot_amount_eur, 2),
         "forwardAmountEUR": round(forward_amount_eur, 2),
