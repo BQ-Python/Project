@@ -26,12 +26,13 @@ class Loan(BaseModel):
     conversionRate: float
 
 class Swap(BaseModel):
+    startDate: str
+    maturityDate: str
     spotRate: float
     forwardRate: float
     nominal: float
     currency: str
     bank: str
-    maturity: str
 
     @field_validator("currency")
     @classmethod
@@ -140,7 +141,7 @@ def get_kpi():
 
     maturity_counts = {}
     for s in swaps_data:
-        maturity = s.get("maturity", "N/A")
+        maturity = s.get("maturityDate", "N/A")
         maturity_counts[maturity] = maturity_counts.get(maturity, 0) + 1
 
     maturity_chart_data = {
