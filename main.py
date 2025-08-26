@@ -51,6 +51,7 @@ def get_market_rate(ccy: str) -> tuple[float, str]:
     if data.empty or "Close" not in data.columns:
         raise HTTPException(status_code=502, detail=f"Aucune donnée disponible pour la paire {pair}")
     return float(data["Close"].iloc[-1]), pair
+
 @app.post("/add-loan")
 def add_loan(loan: Loan):
     loans_data.append(loan.dict())
@@ -90,17 +91,17 @@ def get_advanced_kpi():
         if data.empty or "Close" not in data.columns:
             volatilities[ccy] = None
             continue
-        returns = data["Close"].pct_change().dropna()
+        closes = data["Close"].dropna()
+        if len(closes) < 5:
+            volatilities[ccy] = None
+            continue
+        variation = ((closes.iloc[-1] - closes.iloc[-5]) / closes.iloc[-5]) * 100
+        returns = closes.pct_change().dropna()
         volatility = np.std(returns[-5:]) * 100
-        volatilities[ccy] = round(volatility, 2)
-
-    if not swaps_data:
-        return JSONResponse(content={
-            "message": "Pas de swaps disponibles pour calculer la VaR",
-            "volatilities": volatilities,
-            "VaR_95": None,
-            "VaR_99": None
-        })
+        volatilities[ccy] = {
+            "variation5j": round(variation, 2),
+            "volatilite5j": round(volatility, 2)
+        }
 
     exposures = []
     returns_matrix = []
@@ -120,7 +121,6 @@ def get_advanced_kpi():
 
     if not exposures or not returns_matrix:
         return JSONResponse(content={
-            "message": "Données insuffisantes pour calculer la VaR",
             "volatilities": volatilities,
             "VaR_95": None,
             "VaR_99": None
@@ -214,7 +214,7 @@ def get_historical_fx(currency: str, start: str, end: str):
         "values": data["Close"].round(4).tolist()
     }
 
-# 🔥 Nouvelles routes avancées
+# 🔥 Routes avancées
 risk_router = APIRouter()
 
 @risk_router.get("/risk/stress-test")
