@@ -1,30 +1,27 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+import yfinance as yf
 
 app = FastAPI()
 
-# Autoriser les appels CORS depuis StackBlitz
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # À restreindre en production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 class Swap(BaseModel):
-    spotRate: float     # taux spot (ex: 1.10 USD/EUR)
-    forwardRate: float  # taux forward (ex: 1.12 USD/EUR)
-    nominal: float      # montant en devise étrangère (ex: 100000 USD)
+    spotRate: float
+    forwardRate: float
+    nominal: float
 
 @app.post("/calculate-points")
 def calculate_points(swap: Swap):
-    # Conversion du nominal en EUR
     spot_amount_eur = swap.nominal / swap.spotRate
     forward_amount_eur = swap.nominal / swap.forwardRate
-
-    # Points de swap en EUR
     points_eur = forward_amount_eur - spot_amount_eur
 
     return {
@@ -33,7 +30,23 @@ def calculate_points(swap: Swap):
         "pointsEUR": round(points_eur, 2)
     }
 
-# Démarrage pour Railway
+@app.post("/calculate-mtm")
+def calculate_mtm(swap: Swap):
+    ticker = yf.Ticker("EURUSD=X")
+    data = ticker.history(period="1d")
+    if data.empty:
+        return {"error": "Impossible de récupérer le cours EUR/USD"}
+
+    current_rate = data['Close'].iloc[-1]
+    current_value_eur = swap.nominal / current_rate
+    initial_value_eur = swap.nominal / swap.spotRate
+    mtm = current_value_eur - initial_value_eur
+
+    return {
+        "currentRate": round(current_rate, 4),
+        "markToMarket": round(mtm, 2)
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5174)
