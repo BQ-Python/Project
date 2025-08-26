@@ -71,7 +71,6 @@ def calculate_points(swap: Swap):
     spot_amount_eur = (swap.nominal / swap.spotRate) * conversion_rate
     forward_amount_eur = (swap.nominal / swap.forwardRate) * conversion_rate
     points_eur = forward_amount_eur - spot_amount_eur
-
     return {
         "spotAmountEUR": round(spot_amount_eur, 2),
         "forwardAmountEUR": round(forward_amount_eur, 2),
@@ -120,7 +119,7 @@ def get_kpi():
         "datasets": [{
             "label": "Exposition par devise",
             "data": [swap_by_currency[currency] for currency in swap_by_currency],
-            "backgroundColor": ["#36A2EB", "#FF6384", "#FFCE56"]
+            "backgroundColor": ["#36A2EB", "#FF6384", "#FFCE56", "#4BC0C0"]
         }]
     }
 
@@ -148,7 +147,7 @@ def get_kpi():
         "datasets": [{
             "label": "Répartition par banque",
             "data": list(bank_counts.values()),
-            "backgroundColor": ["#9966FF", "#FF9F40", "#FF6384"]
+            "backgroundColor": ["#9966FF", "#FF9F40", "#FF6384", "#36A2EB"]
         }]
     }
 
