@@ -1,13 +1,13 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Add CORS middleware
+# Autoriser les requêtes CORS depuis StackBlitz ou localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://*.stackblitz.io", "http://localhost:3000"],  # Add your StackBlitz domain or localhost for testing
+    allow_origins=["*"],  # Remplace "*" par l'URL de ton front si tu veux restreindre
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
