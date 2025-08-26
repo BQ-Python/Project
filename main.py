@@ -1,15 +1,16 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, field_validator
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import date
 import yfinance as yf
 
 app = FastAPI()
 
+# ⚠️ Si tu n'utilises pas de cookies côté front, mets allow_credentials=False pour simplifier
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["*"],   # ou liste précise d'origines si tu préfères
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -28,14 +29,30 @@ class Loan(BaseModel):
     conversionRate: float
 
 class Swap(BaseModel):
-    spotRate: float
-    forwardRate: float
-    nominal: float
-    currency: str
+    spotRate: float          # taux EUR/CCY saisi
+    forwardRate: float       # taux EUR/CCY saisi
+    nominal: float           # nominal en devise CCY
+    currency: str            # ex: USD, GBP, JPY, CNY
     bank: str
-    maturity: str  # format YYYY-MM
+    maturity: str            # format YYYY-MM
 
-# Routes
+    @field_validator("currency")
+    @classmethod
+    def validate_ccy(cls, v):
+        v = v.upper()
+        if v not in {"USD", "GBP", "JPY", "CNY"}:
+            raise ValueError("currency must be one of USD, GBP, JPY, CNY")
+        return v
+
+def get_market_rate(ccy: str) -> float:
+    """Récupère le taux marché EUR/CCY (Close du jour) via yfinance."""
+    pair = f"EUR{ccy}=X"
+    ticker = yf.Ticker(pair)
+    data = ticker.history(period="1d")
+    if data.empty or "Close" not in data.columns:
+        raise HTTPException(status_code=502, detail=f"Aucune donnée disponible pour la paire {pair}")
+    return float(data["Close"].iloc[-1]), pair
+
 @app.post("/add-loan")
 def add_loan(loan: Loan):
     loans_data.append(loan.dict())
@@ -43,44 +60,40 @@ def add_loan(loan: Loan):
 
 @app.post("/add-swap")
 def add_swap(swap: Swap):
-    pair = f"EUR{swap.currency}=X"
-    ticker = yf.Ticker(pair)
-    data = ticker.history(period="1d")
+    # 1) Récupère le taux marché (facultatif pour l'affichage / contrôle)
+    market_rate, pair = get_market_rate(swap.currency)
 
-    if data.empty or 'Close' not in data.columns:
-        return {"error": f"Aucune donnée disponible pour la paire {pair}"}
+    # 2) Conversion EUR correcte avec les taux saisis (EUR/CCY)
+    spot_amount_eur = swap.nominal / swap.spotRate
+    forward_amount_eur = swap.nominal / swap.forwardRate
+    points_eur = forward_amount_eur - spot_amount_eur
 
-    conversion_rate = data['Close'].iloc[-1]
-    spot_amount_eur = (swap.nominal / swap.spotRate) * conversion_rate
-    forward_amount_eur = (swap.nominal / swap.forwardRate) * conversion_rate
-    mtm = forward_amount_eur - spot_amount_eur
-
+    # 3) Construire l'objet renvoyé et stocké
     swap_dict = swap.dict()
-    swap_dict["mtm"] = mtm
-    swap_dict["conversionRate"] = conversion_rate
+    swap_dict.update({
+        "spotAmountEUR": round(spot_amount_eur, 2),
+        "forwardAmountEUR": round(forward_amount_eur, 2),
+        "pointsEUR": round(points_eur, 2),
+        "conversionRate": round(market_rate, 6),  # taux marché EUR/CCY (info)
+        "pairUsed": pair
+    })
 
     swaps_data.append(swap_dict)
     return {"message": "Swap ajouté", "swap": swap_dict}
 
 @app.post("/calculate-eur-values")
 def calculate_eur_values(swap: Swap):
-    pair = f"EUR{swap.currency}=X"
-    ticker = yf.Ticker(pair)
-    data = ticker.history(period="1d")
+    market_rate, pair = get_market_rate(swap.currency)
 
-    if data.empty or 'Close' not in data.columns:
-        return {"error": f"Aucune donnée disponible pour la paire {pair}"}
-
-    conversion_rate = data['Close'].iloc[-1]
-    spot_amount_eur = (swap.nominal / swap.spotRate) * conversion_rate
-    forward_amount_eur = (swap.nominal / swap.forwardRate) * conversion_rate
+    spot_amount_eur = swap.nominal / swap.spotRate
+    forward_amount_eur = swap.nominal / swap.forwardRate
     points_eur = forward_amount_eur - spot_amount_eur
 
     return {
         "spotAmountEUR": round(spot_amount_eur, 2),
         "forwardAmountEUR": round(forward_amount_eur, 2),
         "pointsEUR": round(points_eur, 2),
-        "conversionRate": round(conversion_rate, 4),
+        "conversionRate": round(market_rate, 6),
         "pairUsed": pair
     }
 
@@ -90,17 +103,17 @@ def get_historical_eurfx(currency: str, start: date, end: date):
     ticker = yf.Ticker(pair)
     data = ticker.history(start=start.isoformat(), end=end.isoformat())
     if data.empty:
-        return {"error": f"Aucune donnée disponible pour la paire {pair}"}
+        raise HTTPException(status_code=404, detail=f"Aucune donnée disponible pour la paire {pair}")
     return {
         "pair": pair,
-        "dates": data.index.strftime('%Y-%m-%d').tolist(),
-        "rates": data['Close'].round(4).tolist()
+        "dates": data.index.strftime("%Y-%m-%d").tolist(),
+        "rates": data["Close"].round(4).tolist()
     }
 
 @app.get("/kpi")
 def get_kpi():
     if not loans_data or not swaps_data:
-        return {"error": "Pas assez de données pour calculer les KPI"}
+        raise HTTPException(status_code=400, detail="Pas assez de données pour calculer les KPI")
 
     loan_by_currency = {}
     for loan in loans_data:
@@ -117,8 +130,9 @@ def get_kpi():
         ratio = (swap_nominal / loan_nominal) * 100 if loan_nominal > 0 else 0
         hedging_ratios[currency] = round(ratio, 2)
 
-    total_mtm = sum(swap["mtm"] for swap in swaps_data)
+    total_mtm = sum(s["pointsEUR"] for s in swaps_data)  # MtM ~ diff EUR (forward - spot)
 
+    # Charts
     exposure_chart_data = {
         "labels": list(swap_by_currency.keys()),
         "datasets": [{
@@ -129,8 +143,8 @@ def get_kpi():
     }
 
     maturity_counts = {}
-    for swap in swaps_data:
-        maturity = swap.get("maturity", "N/A")
+    for s in swaps_data:
+        maturity = s.get("maturity", "N/A")
         maturity_counts[maturity] = maturity_counts.get(maturity, 0) + 1
 
     maturity_chart_data = {
@@ -143,8 +157,8 @@ def get_kpi():
     }
 
     bank_counts = {}
-    for swap in swaps_data:
-        bank = swap.get("bank", "N/A")
+    for s in swaps_data:
+        bank = s.get("bank", "N/A")
         bank_counts[bank] = bank_counts.get(bank, 0) + 1
 
     bank_chart_data = {
