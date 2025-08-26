@@ -20,8 +20,12 @@ swaps_data = []
 
 # Modèles
 class Loan(BaseModel):
-    nominal: float
+    startDate: str
+    maturityDate: str
     currency: str
+    rate: float
+    nominal: float
+    conversionRate: float
 
 class Swap(BaseModel):
     spotRate: float
