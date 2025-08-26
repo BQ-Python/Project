@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import date
 import yfinance as yf
 
 app = FastAPI()
@@ -30,21 +31,15 @@ def calculate_points(swap: Swap):
         "pointsEUR": round(points_eur, 2)
     }
 
-@app.post("/calculate-mtm")
-def calculate_mtm(swap: Swap):
+@app.get("/historical-eurusd")
+def get_historical_eurusd(start: date, end: date):
     ticker = yf.Ticker("EURUSD=X")
-    data = ticker.history(period="1d")
+    data = ticker.history(start=start.isoformat(), end=end.isoformat())
     if data.empty:
-        return {"error": "Impossible de récupérer le cours EUR/USD"}
-
-    current_rate = data['Close'].iloc[-1]
-    current_value_eur = swap.nominal / current_rate
-    initial_value_eur = swap.nominal / swap.spotRate
-    mtm = current_value_eur - initial_value_eur
-
+        return {"error": "Aucune donnée disponible"}
     return {
-        "currentRate": round(current_rate, 4),
-        "markToMarket": round(mtm, 2)
+        "dates": data.index.strftime('%Y-%m-%d').tolist(),
+        "rates": data['Close'].round(4).tolist()
     }
 
 if __name__ == "__main__":
