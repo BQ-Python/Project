@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
@@ -51,7 +51,6 @@ def get_market_rate(ccy: str) -> tuple[float, str]:
     if data.empty or "Close" not in data.columns:
         raise HTTPException(status_code=502, detail=f"Aucune donnée disponible pour la paire {pair}")
     return float(data["Close"].iloc[-1]), pair
-
 @app.post("/add-loan")
 def add_loan(loan: Loan):
     loans_data.append(loan.dict())
@@ -214,6 +213,72 @@ def get_historical_fx(currency: str, start: str, end: str):
         "dates": data.index.strftime("%Y-%m-%d").tolist(),
         "values": data["Close"].round(4).tolist()
     }
+
+# 🔥 Nouvelles routes avancées
+risk_router = APIRouter()
+
+@risk_router.get("/risk/stress-test")
+def stress_test(shift: float = 0.05):
+    stressed_results = []
+    for swap in swaps_data:
+        stressed_forward = swap["forwardRate"] * (1 + shift)
+        stressed_amount_eur = swap["nominal"] / stressed_forward
+        delta = stressed_amount_eur - swap["forwardAmountEUR"]
+        stressed_results.append({
+            "currency": swap["currency"],
+            "originalForwardAmountEUR": swap["forwardAmountEUR"],
+            "stressedForwardAmountEUR": round(stressed_amount_eur, 2),
+            "deltaEUR": round(delta, 2)
+        })
+    return {"stressTestResults": stressed_results}
+
+@risk_router.get("/risk/expected-shortfall")
+def expected_shortfall(confidence: int = 95):
+    if not swaps_data:
+        return JSONResponse(content={"message": "Pas de swaps disponibles", "expectedShortfall": None})
+
+    exposures = []
+    returns_matrix = []
+
+    for swap in swaps_data:
+        ccy = swap["currency"]
+        pair = f"EUR{ccy}=X"
+        ticker = yf.Ticker(pair)
+        data = ticker.history(period="30d")
+        if data.empty or "Close" not in data.columns:
+            continue
+        returns = data["Close"].pct_change().dropna()
+        if len(returns) < 20:
+            continue
+        exposures.append(swap["nominal"] / swap["forwardRate"])
+        returns_matrix.append(returns[-20:].values)
+
+    if not exposures or not returns_matrix:
+        return JSONResponse(content={"message": "Données insuffisantes", "expectedShortfall": None})
+
+    exposures = np.array(exposures)
+    returns_matrix = np.array(returns_matrix)
+    portfolio_returns = np.dot(returns_matrix, exposures)
+    threshold = np.percentile(portfolio_returns, 100 - confidence)
+    es = portfolio_returns[portfolio_returns <= threshold].mean()
+    return {"expectedShortfall": round(-es, 2)}
+
+@risk_router.get("/risk/mtm-sensitivity")
+def mtm_sensitivity():
+    sensitivity_results = []
+    for swap in swaps_data:
+        market_rate = swap["marketRate"]
+        delta = 0.01
+        mtm_up = swap["nominal"] / (market_rate + delta)
+        mtm_down = swap["nominal"] / (market_rate - delta)
+        sensitivity = (mtm_up - mtm_down) / (2 * delta)
+        sensitivity_results.append({
+            "currency": swap["currency"],
+            "sensitivityEUR": round(sensitivity, 2)
+        })
+    return {"mtmSensitivity": sensitivity_results}
+
+app.include_router(risk_router)
 
 if __name__ == "__main__":
     import uvicorn
