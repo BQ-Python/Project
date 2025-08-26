@@ -8,10 +8,9 @@ from datetime import datetime, timedelta
 
 app = FastAPI()
 
-# CORS pour autoriser les appels depuis StackBlitz/Vite
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tu peux restreindre à ton domaine si nécessaire
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -144,7 +143,7 @@ def get_advanced_kpi():
     }
 
 @app.get("/var/history")
-def get_var_history(confidence: int = Query(95, ge=90, le=99), horizon: int = Query(30, ge=1, le=365)):
+def get_var_history(confidence: int = Query(95), horizon: int = Query(30)):
     if not swaps_data:
         return JSONResponse(content={"labels": [], "datasets": []})
 
@@ -203,6 +202,18 @@ def get_var_history(confidence: int = Query(95, ge=90, le=99), horizon: int = Qu
     }
 
     return JSONResponse(content=chart_data)
+
+@app.get("/historical-eurfx")
+def get_historical_fx(currency: str, start: str, end: str):
+    pair = f"EUR{currency}=X"
+    ticker = yf.Ticker(pair)
+    data = ticker.history(start=start, end=end)
+    if data.empty or "Close" not in data.columns:
+        raise HTTPException(status_code=404, detail="Données introuvables")
+    return {
+        "dates": data.index.strftime("%Y-%m-%d").tolist(),
+        "values": data["Close"].round(4).tolist()
+    }
 
 if __name__ == "__main__":
     import uvicorn
