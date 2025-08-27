@@ -1,17 +1,56 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 import os
 from dotenv import load_dotenv
-from .models import Base  # adapte selon ton structure
-from .database import engine
 
-Base.metadata.create_all(bind=engine)
-
+# Charger les variables d'environnement
 load_dotenv()
 
+# Récupérer l'URL de la base Supabase
 DATABASE_URL = os.getenv("SUPABASE_DB_URL")
 
+# Initialiser le moteur SQLAlchemy
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+# Base pour les modèles
 Base = declarative_base()
 
+# Définition des modèles
+
+class Bank(Base):
+    __tablename__ = "banks"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+
+    swaps = relationship("Swap", back_populates="bank")
+
+
+class Loan(Base):
+    __tablename__ = "loans"
+    id = Column(Integer, primary_key=True, index=True)
+    currency = Column(String(3))
+    amount = Column(Float)
+    interest_rate = Column(Float)
+    start_date = Column(Date)
+    maturity_date = Column(Date)
+    conversion_rate = Column(Float)
+
+
+class Swap(Base):
+    __tablename__ = "swaps"
+    id = Column(Integer, primary_key=True, index=True)
+    start_date = Column(Date)
+    maturity_date = Column(Date)
+    currency = Column(String(3))
+    spot_rate = Column(Float)
+    forward_rate = Column(Float)
+    nominal = Column(Float)
+
+    bank_id = Column(Integer, ForeignKey("banks.id"))
+    bank = relationship("Bank", back_populates="swaps")
+
+
+# Fonction pour créer les tables dans Supabase
+def init_db():
+    Base.metadata.create_all(bind=engine)
