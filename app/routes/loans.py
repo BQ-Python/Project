@@ -11,12 +11,18 @@ def get_loans():
 
 @router.post("/loans", response_model=Loan)
 def create_loan(loan: LoanCreate):
-    response = supabase.table("loans").insert(loan.dict()).execute()
+    data = loan.dict()
+    data["start_date"] = data["start_date"].isoformat()
+    data["maturity_date"] = data["maturity_date"].isoformat()
+    response = supabase.table("loans").insert(data).execute()
     return response.data[0]
 
 @router.put("/loans/{loan_id}", response_model=Loan)
 def update_loan(loan_id: int, loan: LoanCreate):
-    response = supabase.table("loans").update(loan.dict()).eq("id", loan_id).execute()
+    data = loan.dict()
+    data["start_date"] = data["start_date"].isoformat()
+    data["maturity_date"] = data["maturity_date"].isoformat()
+    response = supabase.table("loans").update(data).eq("id", loan_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Loan not found")
     return response.data[0]
