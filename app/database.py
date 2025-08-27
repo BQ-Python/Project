@@ -3,9 +3,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Fore
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement (utile en local uniquement)
-load_dotenv()
-
 # Récupérer l'URL de la base Supabase
 DATABASE_URL = os.getenv("SUPABASE_DB_URL")
 
