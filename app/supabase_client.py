@@ -1,11 +1,11 @@
-# app/supabase_client.py
+from dotenv import load_dotenv
 import os
-from supabase import create_client, Client
 
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
+# Charge le fichier .env automatiquement
+load_dotenv()
 
-if not url or not key:
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Les variables SUPABASE_URL ou SUPABASE_KEY sont manquantes.")
-
-supabase: Client = create_client(url, key)
