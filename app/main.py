@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .routes import loans_router, swaps_router, banks_router, kpi_router
+from app.routes import loans_router, swaps_router, banks_router, kpi_router
 from .database import Base, engine
 
 Base.metadata.create_all(bind=engine)
