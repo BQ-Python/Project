@@ -1,45 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.models import Loan, Swap, Bank
+from fastapi import APIRouter, HTTPException
+from app.supabase_client import supabase
 from schemas import SwapCreate, Swap
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 @router.get("/swaps", response_model=list[Swap])
-def get_swaps(db: Session = Depends(get_db)):
-    return db.query(Swap).all()
+def get_swaps():
+    response = supabase.table("swaps").select("*").execute()
+    return response.data
 
 @router.post("/swaps", response_model=Swap)
-def create_swap(swap: SwapCreate, db: Session = Depends(get_db)):
-    db_swap = Swap(**swap.dict())
-    db.add(db_swap)
-    db.commit()
-    db.refresh(db_swap)
-    return db_swap
+def create_swap(swap: SwapCreate):
+    response = supabase.table("swaps").insert(swap.dict()).execute()
+    return response.data[0]
 
 @router.put("/swaps/{swap_id}", response_model=Swap)
-def update_swap(swap_id: int, swap: SwapCreate, db: Session = Depends(get_db)):
-    db_swap = db.query(Swap).filter(Swap.id == swap_id).first()
-    if not db_swap:
+def update_swap(swap_id: int, swap: SwapCreate):
+    response = supabase.table("swaps").update(swap.dict()).eq("id", swap_id).execute()
+    if not response.data:
         raise HTTPException(status_code=404, detail="Swap not found")
-    for key, value in swap.dict().items():
-        setattr(db_swap, key, value)
-    db.commit()
-    db.refresh(db_swap)
-    return db_swap
+    return response.data[0]
 
 @router.delete("/swaps/{swap_id}")
-def delete_swap(swap_id: int, db: Session = Depends(get_db)):
-    db_swap = db.query(Swap).filter(Swap.id == swap_id).first()
-    if not db_swap:
+def delete_swap(swap_id: int):
+    response = supabase.table("swaps").delete().eq("id", swap_id).execute()
+    if not response.data:
         raise HTTPException(status_code=404, detail="Swap not found")
-    db.delete(db_swap)
-    db.commit()
     return {"message": "Swap deleted"}
