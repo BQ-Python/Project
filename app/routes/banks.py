@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from models import Bank
+from app.models import Loan, Swap, Bank
 from schemas import BankCreate, Bank
 
 router = APIRouter()
