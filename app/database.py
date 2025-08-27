@@ -1,13 +1,17 @@
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
-import os
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement
+# Charger les variables d'environnement (utile en local uniquement)
 load_dotenv()
 
 # Récupérer l'URL de la base Supabase
 DATABASE_URL = os.getenv("SUPABASE_DB_URL")
+
+# Vérification de la variable d'environnement
+if not DATABASE_URL:
+    raise ValueError("❌ La variable d'environnement SUPABASE_DB_URL n'est pas définie.")
 
 # Initialiser le moteur SQLAlchemy
 engine = create_engine(DATABASE_URL)
@@ -17,7 +21,6 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 
 # Définition des modèles
-
 class Bank(Base):
     __tablename__ = "banks"
     id = Column(Integer, primary_key=True, index=True)
@@ -35,7 +38,7 @@ class Loan(Base):
     start_date = Column(Date)
     maturity_date = Column(Date)
     conversion_rate = Column(Float)
-    payment_frequency = Column(String)  # ✅ Nouveau champ ajouté
+    payment_frequency = Column(String)
 
 
 class Swap(Base):
