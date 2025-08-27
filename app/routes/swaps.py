@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.supabase_client import supabase
-from schemas import SwapCreate, Swap
+from app.schemas import SwapCreate, Swap
 
 router = APIRouter()
 
