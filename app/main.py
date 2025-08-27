@@ -1,13 +1,12 @@
 from fastapi import FastAPI
-from .routes import loans, swaps, banks, kpi
+from .routes import loans_router, swaps_router, banks_router, kpi_router
 from .database import Base, engine
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-app.include_router(loans.router)
-app.include_router(swaps.router)
-app.include_router(banks.router)
-app.include_router(kpi.router)
-
+app.include_router(loans_router)
+app.include_router(swaps_router)
+app.include_router(banks_router)
+app.include_router(kpi_router)
