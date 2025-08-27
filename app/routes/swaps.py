@@ -11,12 +11,18 @@ def get_swaps():
 
 @router.post("/swaps", response_model=Swap)
 def create_swap(swap: SwapCreate):
-    response = supabase.table("swaps").insert(swap.dict()).execute()
+    data = swap.dict()
+    data["start_date"] = data["start_date"].isoformat()
+    data["maturity_date"] = data["maturity_date"].isoformat()
+    response = supabase.table("swaps").insert(data).execute()
     return response.data[0]
 
 @router.put("/swaps/{swap_id}", response_model=Swap)
 def update_swap(swap_id: int, swap: SwapCreate):
-    response = supabase.table("swaps").update(swap.dict()).eq("id", swap_id).execute()
+    data = swap.dict()
+    data["start_date"] = data["start_date"].isoformat()
+    data["maturity_date"] = data["maturity_date"].isoformat()
+    response = supabase.table("swaps").update(data).eq("id", swap_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Swap not found")
     return response.data[0]
