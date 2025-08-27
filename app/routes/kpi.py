@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from models import Loan, Swap
+from app.models import Loan, Swap, Bank
 
 router = APIRouter()
 
