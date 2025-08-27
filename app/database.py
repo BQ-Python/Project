@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from dotenv import load_dotenv
 
 # Initialiser le moteur SQLAlchemy
-engine = create_engine(DATABASE_URL)
+engine = create_engine(SUPABASE_DB_URL)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 # Base pour les modèles
