@@ -3,13 +3,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Fore
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from dotenv import load_dotenv
 
-# Récupérer l'URL de la base Supabase
-DATABASE_URL = os.getenv("SUPABASE_DB_URL")
-
-# Vérification de la variable d'environnement
-if not DATABASE_URL:
-    raise ValueError("❌ La variable d'environnement SUPABASE_DB_URL n'est pas définie.")
-
 # Initialiser le moteur SQLAlchemy
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
