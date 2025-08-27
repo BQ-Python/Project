@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.supabase_client import supabase
-from schemas import BankCreate, Bank
+from app.schemas import BankCreate, Bank
 
 router = APIRouter()
 
