@@ -1,7 +1,11 @@
 import yfinance as yf
 
+import logging
+logging.basicConfig(level=logging.WARNING)  # Limiter les journaux au niveau WARNING
+
 def get_spot_rate(base_currency, quote_currency):
-    pair = f"{base_currency}{quote_currency}=X"  # Exemple : "EURUSD=X"
+    pair = f"{base_currency}{quote_currency}=X"
+    logging.info(f"Récupération du taux pour {pair}")
     ticker = yf.Ticker(pair)
     data = ticker.history(period="1d")
     return data["Close"].iloc[-1]
