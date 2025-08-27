@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
+from typing import Literal
 
 class LoanBase(BaseModel):
     currency: str
@@ -7,12 +8,14 @@ class LoanBase(BaseModel):
     rate: float
     start_date: date
     maturity_date: date
+    payment_frequency: Literal["in_fine", "1 mois", "3 mois", "6 mois", "12 mois"]
 
 class LoanCreate(LoanBase): pass
+
 class Loan(LoanBase):
     id: int
     class Config:
-        orm_mode = True
+        orm_mode = True  # ⚠️ En Pydantic v2, utiliser `from_attributes = True`
 
 class SwapBase(BaseModel):
     currency: str
@@ -24,6 +27,7 @@ class SwapBase(BaseModel):
     bank_id: int
 
 class SwapCreate(SwapBase): pass
+
 class Swap(SwapBase):
     id: int
     class Config:
@@ -33,8 +37,8 @@ class BankBase(BaseModel):
     name: str
 
 class BankCreate(BankBase): pass
+
 class Bank(BankBase):
     id: int
     class Config:
         orm_mode = True
-
