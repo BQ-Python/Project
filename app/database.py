@@ -35,6 +35,7 @@ class Loan(Base):
     start_date = Column(Date)
     maturity_date = Column(Date)
     conversion_rate = Column(Float)
+    payment_frequency = Column(String)  # ✅ Nouveau champ ajouté
 
 
 class Swap(Base):
