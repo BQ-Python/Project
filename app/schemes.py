@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
-from typing import Literal
+from typing import Literal, List, Dict
 
 class LoanBase(BaseModel):
     currency: str
@@ -15,31 +15,10 @@ class LoanCreate(LoanBase): pass
 
 class Loan(LoanBase):
     id: int
+    number_of_days: int
+    total_interest: float
+    nominal_in_eur: float
+    repayment_schedule: List[Dict]
+    
     class Config:
-        orm_mode = True  # ⚠️ En Pydantic v2, utiliser `from_attributes = True`
-
-class SwapBase(BaseModel):
-    currency: str
-    nominal: float
-    start_date: date
-    maturity_date: date
-    spot_rate: float
-    forward_rate: float
-    bank_id: int
-
-class SwapCreate(SwapBase): pass
-
-class Swap(SwapBase):
-    id: int
-    class Config:
-        orm_mode = True
-
-class BankBase(BaseModel):
-    name: str
-
-class BankCreate(BankBase): pass
-
-class Bank(BankBase):
-    id: int
-    class Config:
-        orm_mode = True
+        orm_mode = True  # Pydantic v1
