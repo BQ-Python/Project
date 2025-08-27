@@ -1,25 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.models import Loan, Swap, Bank
+from fastapi import APIRouter, HTTPException
+from app.supabase_client import supabase
 from schemas import BankCreate, Bank
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 @router.get("/banks", response_model=list[Bank])
-def get_banks(db: Session = Depends(get_db)):
-    return db.query(Bank).all()
+def get_banks():
+    response = supabase.table("banks").select("*").execute()
+    return response.data
 
 @router.post("/banks", response_model=Bank)
-def create_bank(bank: BankCreate, db: Session = Depends(get_db)):
-    db_bank = Bank(**bank.dict())
-    db.add(db_bank)
-    db.commit()
-    db.refresh(db_bank)
-    return db_bank
+def create_bank(bank: BankCreate):
+    response = supabase.table("banks").insert(bank.dict()).execute()
+    return response.data[0]
