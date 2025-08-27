@@ -9,6 +9,7 @@ class LoanBase(BaseModel):
     start_date: date
     maturity_date: date
     payment_frequency: Literal["in_fine", "1 mois", "3 mois", "6 mois", "12 mois"]
+    conversion_rate: float
 
 class LoanCreate(LoanBase): pass
 
