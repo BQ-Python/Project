@@ -1,5 +1,8 @@
 fastapi
-uvicorn
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
 pydantic
+python-dotenv
 yfinance
-pandas
+requests
