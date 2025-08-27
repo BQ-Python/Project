@@ -12,7 +12,10 @@ app = FastAPI(
 # Configuration CORS pour autoriser les requêtes cross-origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ← à restreindre en production
+    allow_origins=[
+        "http://localhost:5173",
+        "https://vitejsvitengttu2fx-ngpy--5173--96435430.local-credentialless.webcontainer.io"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
