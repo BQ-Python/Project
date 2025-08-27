@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.supabase_client import supabase
-from app.schemas import LoanCreate, Loan
+from app.schemes import LoanCreate, Loan
 
 router = APIRouter()
 
