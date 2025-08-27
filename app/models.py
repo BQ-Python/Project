@@ -10,6 +10,7 @@ class Loan(Base):
     rate = Column(Float)
     start_date = Column(Date)
     maturity_date = Column(Date)
+    payment_frequency = Column(String)  # ✅ Nouveau champ ajouté
 
 class Swap(Base):
     __tablename__ = "swaps"
@@ -27,4 +28,3 @@ class Bank(Base):
     __tablename__ = "banks"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
-
