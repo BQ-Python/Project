@@ -1,14 +1,20 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from app.supabase_client import supabase
 from app.schemes import SwapCreate, Swap
 
 router = APIRouter()
 
-def cors_response(data):
+# Fonction utilitaire pour ajouter les headers CORS
+def cors_response(data, status_code=200):
     return JSONResponse(
         content=data,
-        headers={"Access-Control-Allow-Origin": "*"}
+        status_code=status_code,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        }
     )
 
 @router.get("/swaps", response_model=list[Swap])
