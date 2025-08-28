@@ -29,10 +29,16 @@ def create_swap(swap: SwapCreate):
         data = swap.dict()
         data["start_date"] = data["start_date"].isoformat()
         data["maturity_date"] = data["maturity_date"].isoformat()
+
         response = supabase.table("swaps").insert(data).execute()
+        print("Données envoyées à Supabase :", data)
+        print("Réponse Supabase :", response)
 
         if not response.data or len(response.data) == 0:
-            raise HTTPException(status_code=500, detail="Insertion failed or no data returned")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Insertion échouée ou aucune donnée retournée. Réponse Supabase : {response}"
+            )
 
         return cors_response(response.data[0])
     except Exception as e:
@@ -44,10 +50,12 @@ def update_swap(swap_id: int, swap: SwapCreate):
         data = swap.dict()
         data["start_date"] = data["start_date"].isoformat()
         data["maturity_date"] = data["maturity_date"].isoformat()
+
         response = supabase.table("swaps").update(data).eq("id", swap_id).execute()
+        print("Réponse update Supabase :", response)
 
         if not response.data:
-            raise HTTPException(status_code=404, detail="Swap not found")
+            raise HTTPException(status_code=404, detail="Swap introuvable")
 
         return cors_response(response.data[0])
     except Exception as e:
@@ -57,10 +65,11 @@ def update_swap(swap_id: int, swap: SwapCreate):
 def delete_swap(swap_id: int):
     try:
         response = supabase.table("swaps").delete().eq("id", swap_id).execute()
+        print("Réponse delete Supabase :", response)
 
         if not response.data:
-            raise HTTPException(status_code=404, detail="Swap not found")
+            raise HTTPException(status_code=404, detail="Swap introuvable")
 
-        return cors_response({"message": "Swap deleted"})
+        return cors_response({"message": "Swap supprimé"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
