@@ -1,3 +1,7 @@
+from pydantic import BaseModel
+from datetime import date
+from typing import Literal, List, Dict
+
 class SwapBase(BaseModel):
     currency: str
     nominal: float
