@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from datetime import date
 from app.supabase_client import supabase
 from app.schemes import SwapCreate, Swap
-from app.calculations import calculate_mtm
+from app.utils import calculate_mtm
 
 router = APIRouter()
 
