@@ -1,8 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from app.supabase_client import supabase
 from app.schemes import SwapCreate, Swap
 
 router = APIRouter()
+
+# Routes OPTIONS pour CORS
+@router.options("/swaps")
+def options_swaps():
+    return Response(status_code=204)
+
+@router.options("/swaps/{swap_id}")
+def options_swap_id(swap_id: int):
+    return Response(status_code=204)
 
 @router.get("/swaps", response_model=list[Swap])
 def get_swaps():
