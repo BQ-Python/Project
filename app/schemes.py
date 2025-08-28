@@ -25,9 +25,9 @@ class Loan(LoanBase):
     nominal_in_eur: float
     repayment_schedule: List[Dict]
 
-    class Config:
-        orm_mode = True  # Pydantic v1
-        # from_attributes = True  # Pydantic v2
+    model_config = {
+        "from_attributes": True
+    }
 
 # ---------------------
 # Modèles pour les swaps
@@ -48,8 +48,9 @@ class SwapCreate(SwapBase):
 class Swap(SwapBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 # ---------------------
 # Modèles pour les banques
@@ -64,5 +65,5 @@ class BankCreate(BankBase):
 class Bank(BankBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
