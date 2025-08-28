@@ -4,12 +4,7 @@ import logging
 import yfinance as yf
 import numpy as np
 
-# Configuration du logging
 logging.basicConfig(level=logging.WARNING)
-
-# ---------------------
-# Fonctions pour les prêts
-# ---------------------
 
 def calculate_loan_characteristics(currency: str, nominal: float, rate: float, start_date: str, maturity_date: str, payment_frequency: str, conversion_rate: float) -> Dict:
     start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -54,10 +49,6 @@ def calculate_loan_characteristics(currency: str, nominal: float, rate: float, s
         "nominal_in_eur": round(nominal_eur, 2),
         "repayment_schedule": schedule
     }
-
-# ---------------------
-# Fonctions pour les swaps
-# ---------------------
 
 def get_spot_rate(base_currency: str, quote_currency: str) -> float:
     pair = f"{base_currency}{quote_currency}=X"
