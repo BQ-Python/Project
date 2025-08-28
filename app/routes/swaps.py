@@ -55,3 +55,4 @@ def delete_swap(swap_id: int):
             raise HTTPException(status_code=404, detail="Swap not found")
         return cors_response({"message": "Swap deleted"})
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
