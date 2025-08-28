@@ -8,9 +8,8 @@ router = APIRouter()
 @router.get("/swaps")
 def get_swaps():
     response = supabase.table("swaps").select("*").execute()
-    # TEMPORAIRE : ajouter un champ fictif pour forcer une réponse non vide
     return JSONResponse(
-        content={"data": response.data, "debug": "CORS test"},
+        content={"data": response.data},  # même si c'est []
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
