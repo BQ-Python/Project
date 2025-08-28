@@ -30,6 +30,10 @@ def create_swap(swap: SwapCreate):
         data["start_date"] = data["start_date"].isoformat()
         data["maturity_date"] = data["maturity_date"].isoformat()
         response = supabase.table("swaps").insert(data).execute()
+
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=500, detail="Insertion failed or no data returned")
+
         return cors_response(response.data[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -41,8 +45,10 @@ def update_swap(swap_id: int, swap: SwapCreate):
         data["start_date"] = data["start_date"].isoformat()
         data["maturity_date"] = data["maturity_date"].isoformat()
         response = supabase.table("swaps").update(data).eq("id", swap_id).execute()
+
         if not response.data:
             raise HTTPException(status_code=404, detail="Swap not found")
+
         return cors_response(response.data[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -51,8 +57,10 @@ def update_swap(swap_id: int, swap: SwapCreate):
 def delete_swap(swap_id: int):
     try:
         response = supabase.table("swaps").delete().eq("id", swap_id).execute()
+
         if not response.data:
             raise HTTPException(status_code=404, detail="Swap not found")
+
         return cors_response({"message": "Swap deleted"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
