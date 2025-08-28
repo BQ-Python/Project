@@ -13,7 +13,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Pour le dev, sinon spécifie ton domaine StackBlitz
-    allow_credentials=True,
+    allow_credentials=True, #fonctionne
     allow_methods=["*"],
     allow_headers=["*"],
 )
