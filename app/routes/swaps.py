@@ -6,10 +6,10 @@ from app.schemes import SwapCreate, Swap
 router = APIRouter()
 
 # Fonction utilitaire pour ajouter les headers CORS
-def cors_response(data, status_code=200):
+@router.get("/swaps/test-cors")
+def test_swaps_cors():
     return JSONResponse(
-        content=data,
-        status_code=status_code,
+        content={"message": "CORS test depuis swaps"},
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
