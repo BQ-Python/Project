@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+from datetime import date
 from app.supabase_client import supabase
 from app.schemes import SwapCreate, Swap
+from app.calculations import calculate_mtm
 
 router = APIRouter()
 
@@ -26,19 +28,38 @@ def get_swaps():
 @router.post("/swaps", response_model=Swap)
 def create_swap(swap: SwapCreate):
     try:
+        start_date = swap.start_date
+        maturity_date = swap.maturity_date
+        today = date.today()
+
+        spot_value_eur = swap.nominal * swap.spot_rate
+        forward_value_eur = swap.nominal * swap.forward_rate
+        swap_points_eur = forward_value_eur - spot_value_eur
+        total_days = (maturity_date - start_date).days
+        remaining_days = (maturity_date - today).days
+
+        base_currency = "EUR"
+        quote_currency = swap.currency.upper()
+
+        try:
+            mtm_eur = calculate_mtm(swap.nominal, swap.forward_rate, base_currency, quote_currency)
+        except Exception:
+            mtm_eur = None
+
         data = swap.dict()
-        data["start_date"] = data["start_date"].isoformat()
-        data["maturity_date"] = data["maturity_date"].isoformat()
+        data["start_date"] = start_date.isoformat()
+        data["maturity_date"] = maturity_date.isoformat()
+        data["spot_value_eur"] = spot_value_eur
+        data["forward_value_eur"] = forward_value_eur
+        data["swap_points_eur"] = swap_points_eur
+        data["mtm_eur"] = mtm_eur
+        data["total_days"] = total_days
+        data["remaining_days"] = remaining_days
 
         response = supabase.table("swaps").insert(data).execute()
-        print("Données envoyées à Supabase :", data)
-        print("Réponse Supabase :", response)
 
         if not response.data or len(response.data) == 0:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Insertion échouée ou aucune donnée retournée. Réponse Supabase : {response}"
-            )
+            raise HTTPException(status_code=500, detail="Insertion échouée")
 
         return cors_response(response.data[0])
     except Exception as e:
@@ -47,12 +68,35 @@ def create_swap(swap: SwapCreate):
 @router.put("/swaps/{swap_id}", response_model=Swap)
 def update_swap(swap_id: int, swap: SwapCreate):
     try:
+        start_date = swap.start_date
+        maturity_date = swap.maturity_date
+        today = date.today()
+
+        spot_value_eur = swap.nominal * swap.spot_rate
+        forward_value_eur = swap.nominal * swap.forward_rate
+        swap_points_eur = forward_value_eur - spot_value_eur
+        total_days = (maturity_date - start_date).days
+        remaining_days = (maturity_date - today).days
+
+        base_currency = "EUR"
+        quote_currency = swap.currency.upper()
+
+        try:
+            mtm_eur = calculate_mtm(swap.nominal, swap.forward_rate, base_currency, quote_currency)
+        except Exception:
+            mtm_eur = None
+
         data = swap.dict()
-        data["start_date"] = data["start_date"].isoformat()
-        data["maturity_date"] = data["maturity_date"].isoformat()
+        data["start_date"] = start_date.isoformat()
+        data["maturity_date"] = maturity_date.isoformat()
+        data["spot_value_eur"] = spot_value_eur
+        data["forward_value_eur"] = forward_value_eur
+        data["swap_points_eur"] = swap_points_eur
+        data["mtm_eur"] = mtm_eur
+        data["total_days"] = total_days
+        data["remaining_days"] = remaining_days
 
         response = supabase.table("swaps").update(data).eq("id", swap_id).execute()
-        print("Réponse update Supabase :", response)
 
         if not response.data:
             raise HTTPException(status_code=404, detail="Swap introuvable")
@@ -65,7 +109,6 @@ def update_swap(swap_id: int, swap: SwapCreate):
 def delete_swap(swap_id: int):
     try:
         response = supabase.table("swaps").delete().eq("id", swap_id).execute()
-        print("Réponse delete Supabase :", response)
 
         if not response.data:
             raise HTTPException(status_code=404, detail="Swap introuvable")
