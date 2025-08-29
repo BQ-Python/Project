@@ -21,6 +21,21 @@ def cors_response(content):
         }
     )
 
+def save_kpi_history(deal_id: int, mtm_eur: float, var_5: float, stress_mtm: float, exposure: float, maturity_weighted: float):
+    """Sauvegarde les KPI dans la table deal_kpi_history."""
+    try:
+        supabase.table("deal_kpi_history").insert({
+            "deal_id": deal_id,
+            "date": date.today().isoformat(),
+            "mtm_eur": mtm_eur,
+            "var_5": var_5,
+            "stress_mtm": stress_mtm,
+            "exposure": exposure,
+            "maturity_weighted": maturity_weighted
+        }).execute()
+    except Exception as e:
+        logging.error(f"Erreur lors de la sauvegarde des KPI pour deal {deal_id}: {e}")
+
 @router.get("/kpi/dashboard")
 def get_risk_dashboard(
     deal_ids: Optional[List[int]] = Query(None),
@@ -64,10 +79,21 @@ def get_risk_dashboard(
         weighted_days = 0.0
         today = date.today()
 
+        # Cache des taux spot pour éviter les appels multiples
+        spot_cache = {}
+
         for swap in swaps:
+            if not swap.get("nominal") or not swap.get("forward_rate") or not swap.get("currency"):
+                logging.warning(f"Swap {swap['id']} a des données manquantes")
+                continue
+
             currency = swap["currency"].upper()
+            pair = f"EUR{currency}=X"
+            if pair not in spot_cache:
+                spot_cache[pair] = get_spot_rate("EUR", currency)
+
             try:
-                spot = get_spot_rate("EUR", currency)
+                spot = spot_cache[pair]
                 mtm = calculate_mtm(swap["nominal"], swap["forward_rate"], "EUR", currency)
                 mtm_values.append(mtm)
                 dashboard_data["mtm_summary"]["total_mtm_eur"] += mtm
@@ -85,13 +111,38 @@ def get_risk_dashboard(
                 total_nominal_eur += nominal_eur
 
                 dashboard_data["exposure_by_currency"][currency] = dashboard_data["exposure_by_currency"].get(currency, 0.0) + nominal_eur
-            except Exception as e:
-                logging.error(f"Erreur swap {swap['id']}: {e}")
+
+                # Mise à jour des champs calculés dans la table swaps
+                supabase.table("swaps").update({
+                    "mtm_eur": mtm,
+                    "spot_value_eur": nominal_eur
+                }).eq("id", swap["id"]).execute()
+
+                # Sauvegarde dans deal_kpi_history
+                save_kpi_history(
+                    deal_id=swap["id"],
+                    mtm_eur=mtm,
+                    var_5=calculate_var([mtm]),
+                    stress_mtm=stress_up,
+                    exposure=nominal_eur,
+                    maturity_weighted=remaining_days
+                )
+            except ValueError as ve:
+                logging.error(f"Erreur swap {swap['id']}: {ve}")
+                continue
 
         for loan in loans:
+            if not loan.get("nominal") or not loan.get("conversion_rate") or not loan.get("currency"):
+                logging.warning(f"Loan {loan['id']} a des données manquantes")
+                continue
+
             currency = loan["currency"].upper()
+            pair = f"EUR{currency}=X"
+            if pair not in spot_cache:
+                spot_cache[pair] = get_spot_rate("EUR", currency)
+
             try:
-                spot = get_spot_rate("EUR", currency)
+                spot = spot_cache[pair]
                 mtm = (loan["nominal"] * spot) - (loan["nominal"] * loan["conversion_rate"])
                 mtm_values.append(mtm)
                 dashboard_data["mtm_summary"]["total_mtm_eur"] += mtm
@@ -104,8 +155,19 @@ def get_risk_dashboard(
                 total_nominal_eur += nominal_eur
 
                 dashboard_data["exposure_by_currency"][currency] = dashboard_data["exposure_by_currency"].get(currency, 0.0) + nominal_eur
-            except Exception as e:
-                logging.error(f"Erreur loan {loan['id']}: {e}")
+
+                # Sauvegarde dans deal_kpi_history
+                save_kpi_history(
+                    deal_id=loan["id"],
+                    mtm_eur=mtm,
+                    var_5=calculate_var([mtm]),
+                    stress_mtm=0.0,  # Pas de stress test pour les loans
+                    exposure=nominal_eur,
+                    maturity_weighted=remaining_days
+                )
+            except ValueError as ve:
+                logging.error(f"Erreur loan {loan['id']}: {ve}")
+                continue
 
         dashboard_data["stress_test"]["up_5_percent"] = sum(stress_up_values)
         dashboard_data["stress_test"]["down_5_percent"] = sum(stress_down_values)
@@ -115,17 +177,35 @@ def get_risk_dashboard(
             dashboard_data["weighted_maturity"]["days"] = weighted_days / total_nominal_eur
         dashboard_data["weighted_maturity"]["total_nominal_eur"] = total_nominal_eur
 
-        # Séries temporelles
+        # Séries temporelles avec données historiques
         for i in range(7):
-            day = (datetime.today() - timedelta(days=i)).strftime("%Y-%m-%d")
-            mtm_day = sum(mtm_values)
-            stress_up_day = sum(stress_up_values)
-            stress_down_day = sum(stress_down_values)
-            dashboard_data["mtm_timeseries"].append({"date": day, "mtm": mtm_day})
-            dashboard_data["stress_test_timeseries"].append({"date": day, "up_5_percent": stress_up_day, "down_5_percent": stress_down_day})
+            day = (datetime.today() - timedelta(days=i)).date()
+            mtm_day = 0.0
+            stress_up_day = 0.0
+            stress_down_day = 0.0
+            for swap in swaps:
+                if not swap.get("nominal") or not swap.get("forward_rate") or not swap.get("currency"):
+                    continue
+                currency = swap["currency"].upper()
+                pair = f"EUR{currency}=X"
+                try:
+                    ticker = yf.Ticker(pair)
+                    data = ticker.history(period="7d")
+                    spot = data["Close"].loc[day.strftime("%Y-%m-%d")]
+                    mtm_day += (swap["forward_rate"] - spot) * swap["nominal"]
+                    stress_up_day += stress_test_mtm(swap["nominal"], swap["forward_rate"], "EUR", currency, 0.05)
+                    stress_down_day += stress_test_mtm(swap["nominal"], swap["forward_rate"], "EUR", currency, -0.05)
+                except Exception as e:
+                    logging.error(f"Erreur série temporelle swap {swap['id']} pour {day}: {e}")
+                    continue
+            dashboard_data["mtm_timeseries"].append({"date": day.isoformat(), "mtm": mtm_day})
+            dashboard_data["stress_test_timeseries"].append({"date": day.isoformat(), "up_5_percent": stress_up_day, "down_5_percent": stress_down_day})
 
         return cors_response(dashboard_data)
 
+    except ValueError as ve:
+        logging.error(f"Erreur de validation: {ve}")
+        raise HTTPException(status_code=400, detail=f"Erreur de validation des données: {str(ve)}")
     except Exception as e:
         logging.error(f"Erreur dashboard: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur, veuillez réessayer plus tard")
