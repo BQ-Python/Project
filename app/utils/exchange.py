@@ -1,13 +1,23 @@
 import yfinance as yf
 import logging
+from functools import lru_cache
 
-# Configuration du logging
 logging.basicConfig(level=logging.WARNING)
 
+@lru_cache(maxsize=100)
 def get_spot_rate(base_currency: str, quote_currency: str) -> float:
     """
     Récupère le taux spot à partir de Yahoo Finance pour une paire de devises.
-    Exemple : EURUSD -> EURUSD=X
+    
+    Args:
+        base_currency: Devise de base (ex. EUR)
+        quote_currency: Devise de cotation (ex. USD)
+    
+    Returns:
+        float: Taux spot
+    
+    Raises:
+        ValueError: Si la récupération du taux échoue
     """
     pair = f"{base_currency}{quote_currency}=X"
     logging.info(f"Récupération du taux pour {pair}")
