@@ -3,10 +3,52 @@ from typing import Dict, List
 import logging
 import yfinance as yf
 import numpy as np
+from functools import lru_cache
 
 logging.basicConfig(level=logging.WARNING)
 
+@lru_cache(maxsize=100)
+def get_spot_rate(base_currency: str, quote_currency: str) -> float:
+    """
+    Récupère le taux spot à partir de Yahoo Finance pour une paire de devises.
+    
+    Args:
+        base_currency: Devise de base (ex. EUR)
+        quote_currency: Devise de cotation (ex. USD)
+    
+    Returns:
+        float: Taux spot
+    
+    Raises:
+        ValueError: Si la récupération du taux échoue
+    """
+    pair = f"{base_currency}{quote_currency}=X"
+    logging.info(f"Récupération du taux pour {pair}")
+    try:
+        ticker = yf.Ticker(pair)
+        data = ticker.history(period="1d")
+        spot = data["Close"].iloc[-1]
+        return float(spot)
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération du taux spot : {e}")
+        raise ValueError(f"Impossible de récupérer le taux spot pour {pair}")
+
 def calculate_loan_characteristics(currency: str, nominal: float, rate: float, start_date: str, maturity_date: str, payment_frequency: str, conversion_rate: float) -> Dict:
+    """
+    Calcule les caractéristiques d'un prêt.
+    
+    Args:
+        currency: Devise du prêt
+        nominal: Montant notionnel
+        rate: Taux d'intérêt
+        start_date: Date de début (format YYYY-MM-DD)
+        maturity_date: Date d'échéance (format YYYY-MM-DD)
+        payment_frequency: Fréquence de paiement
+        conversion_rate: Taux de conversion en EUR
+    
+    Returns:
+        Dict: Caractéristiques du prêt (jours, intérêts, nominal en EUR, échéancier)
+    """
     start = datetime.strptime(start_date, "%Y-%m-%d")
     maturity = datetime.strptime(maturity_date, "%Y-%m-%d")
     num_days = (maturity - start).days
@@ -50,31 +92,63 @@ def calculate_loan_characteristics(currency: str, nominal: float, rate: float, s
         "repayment_schedule": schedule
     }
 
-def get_spot_rate(base_currency: str, quote_currency: str) -> float:
-    pair = f"{base_currency}{quote_currency}=X"
-    logging.info(f"Récupération du taux pour {pair}")
-    try:
-        ticker = yf.Ticker(pair)
-        data = ticker.history(period="1d")
-        spot = data["Close"].iloc[-1]
-        return float(spot)
-    except Exception as e:
-        logging.error(f"Erreur lors de la récupération du taux spot : {e}")
-        raise ValueError(f"Impossible de récupérer le taux spot pour {pair}")
-
 def calculate_mtm(nominal: float, forward: float, base_currency: str, quote_currency: str) -> float:
+    """
+    Calcule le MTM (Mark-to-Market) d'un swap.
+    
+    Args:
+        nominal: Montant notionnel
+        forward: Taux forward
+        base_currency: Devise de base
+        quote_currency: Devise de cotation
+    
+    Returns:
+        float: Valeur MTM
+    """
     spot = get_spot_rate(base_currency, quote_currency)
     return (forward - spot) * nominal
 
 def calculate_hedging_ratio(total_covered: float, total_exposure: float) -> float:
+    """
+    Calcule le ratio de couverture.
+    
+    Args:
+        total_covered: Montant couvert
+        total_exposure: Exposition totale
+    
+    Returns:
+        float: Ratio de couverture
+    """
     return total_covered / total_exposure if total_exposure else 0.0
 
 def stress_test_mtm(nominal: float, forward: float, base_currency: str, quote_currency: str, variation: float = 0.05) -> float:
+    """
+    Calcule le MTM en situation de stress.
+    
+    Args:
+        nominal: Montant notionnel
+        forward: Taux forward
+        base_currency: Devise de base
+        quote_currency: Devise de cotation
+        variation: Variation du taux forward
+    
+    Returns:
+        float: MTM stressé
+    """
     stressed_forward = forward * (1 + variation)
     spot = get_spot_rate(base_currency, quote_currency)
     return (stressed_forward - spot) * nominal
 
 def calculate_var(mtm_values: List[float]) -> float:
+    """
+    Calcule la Value-at-Risk (VaR) à 5%.
+    
+    Args:
+        mtm_values: Liste des valeurs MTM
+    
+    Returns:
+        float: VaR à 5%
+    """
     if not mtm_values:
         return 0.0
     return float(np.percentile(mtm_values, 5))
